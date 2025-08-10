@@ -40,8 +40,8 @@
            status.processor === 'word_complete' ? 'Complete Word to HTML Processing' :
            'Processing' }}
       </div>
-    </div> <!-- ADDED: Closes space-y-3 div -->
-  </div> <!-- ADDED: Closes v-if="status" div -->
+    </div> <!-- Closes space-y-3 -->
+  </div> <!-- Closes main container -->
 </template>
 
 <script>
