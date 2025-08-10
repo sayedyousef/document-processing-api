@@ -2,9 +2,17 @@
   <div class="max-w-xl mx-auto mt-6 p-6 bg-white rounded-lg shadow-md">
     <h3 class="text-lg font-semibold mb-4">Results Ready</h3>
     
+    <!-- Add refresh button -->
+    <button 
+      @click="refreshResults"
+      class="mb-3 px-3 py-1 bg-gray-100 text-gray-600 text-sm rounded hover:bg-gray-200"
+    >
+      🔄 Refresh Results
+    </button>
+    
     <div class="space-y-3">
       <div 
-        v-for="(result, index) in results" 
+        v-for="(result, index) in currentResults" 
         :key="index"
         class="flex justify-between items-center p-3 bg-gray-50 rounded-lg"
       >
@@ -27,7 +35,7 @@
           <span v-if="result.error" class="text-xs text-red-500">{{ result.error }}</span>
           <button 
             v-else
-            @click="downloadFile(index)"
+            @click="downloadFileWithRefresh(index)"
             class="px-3 py-1 bg-blue-500 text-white text-sm rounded hover:bg-blue-600 transition-colors"
           >
             {{ result.type === 'application/zip' ? '📦 Download ZIP' : 'Download' }}
@@ -38,7 +46,7 @@
     
     <button 
       @click="downloadAll"
-      v-if="results.length > 1 && !hasErrors"
+      v-if="currentResults.length > 1 && !hasErrors"
       class="mt-4 w-full px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600 transition-colors font-semibold"
     >
       Download All as ZIP
@@ -54,14 +62,18 @@
 </template>
 
 <script>
-import { computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
+import axios from 'axios'
 
 export default {
   props: ['results', 'jobId'],
   emits: ['reset'],
   setup(props) {
+    // Use local state for results that can be refreshed
+    const currentResults = ref(props.results)
+    
     const hasErrors = computed(() => {
-      return props.results.some(r => r.error)
+      return currentResults.value.some(r => r.error)
     })
     
     // FORMAT FILE SIZE FUNCTION
@@ -74,15 +86,50 @@ export default {
       return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i]
     }
     
+    // Refresh results from backend
+    const refreshResults = async () => {
+      console.log('[ResultDownload] Refreshing results for job:', props.jobId)
+      try {
+        const response = await axios.get(`http://localhost:8000/api/status/${props.jobId}`)
+        if (response.data.results) {
+          currentResults.value = response.data.results
+          console.log('[ResultDownload] Results refreshed:', currentResults.value)
+        }
+      } catch (error) {
+        console.error('[ResultDownload] Failed to refresh results:', error)
+      }
+    }
+    
+    // Download with refresh check
+    const downloadFileWithRefresh = async (index) => {
+      // First refresh to get latest results
+      await refreshResults()
+      
+      // Wait a bit to ensure backend has finalized
+      await new Promise(resolve => setTimeout(resolve, 500))
+      
+      // Now download with updated results
+      const url = `http://localhost:8000/api/download/${props.jobId}/${index}`
+      console.log('[ResultDownload] Downloading file from:', url)
+      console.log('[ResultDownload] Current results:', currentResults.value)
+      console.log('[ResultDownload] File info:', currentResults.value[index])
+      
+      const link = document.createElement('a')
+      link.href = url
+      link.download = currentResults.value[index].filename || `download_${index}`
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+    }
+    
     const downloadFile = (index) => {
       const url = `http://localhost:8000/api/download/${props.jobId}/${index}`
       console.log('[ResultDownload] Downloading file from:', url)
-      console.log('[ResultDownload] File info:', props.results[index])
+      console.log('[ResultDownload] File info:', currentResults.value[index])
       
-      // Create download link
       const link = document.createElement('a')
       link.href = url
-      link.download = props.results[index].filename || `download_${index}`
+      link.download = currentResults.value[index].filename || `download_${index}`
       document.body.appendChild(link)
       link.click()
       document.body.removeChild(link)
@@ -100,13 +147,22 @@ export default {
       document.body.removeChild(link)
     }
     
-    console.log('[ResultDownload] Component setup with results:', props.results)
+    // Auto-refresh on mount
+    onMounted(() => {
+      console.log('[ResultDownload] Component mounted, auto-refreshing results...')
+      setTimeout(refreshResults, 1000) // Refresh after 1 second
+    })
+    
+    console.log('[ResultDownload] Component setup with initial results:', props.results)
     
     return {
       downloadFile,
+      downloadFileWithRefresh,
       downloadAll,
       hasErrors,
-      formatFileSize  // ← THIS WAS MISSING! Must be returned
+      formatFileSize,
+      refreshResults,
+      currentResults
     }
   }
 }
