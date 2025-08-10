@@ -150,6 +150,16 @@ async def download_all_results(job_id: str):
         logger.error("No successful results")
         raise HTTPException(status_code=404, detail="No successful results")
     
+    if len(results) == 1 and results[0].get("type") == "application/zip":
+        # Direct ZIP download
+        file_path = Path(results[0]["path"])
+        logger.info(f"Serving ZIP file: {file_path}")
+        return FileResponse(
+            path=str(file_path),
+            filename=results[0]["output_filename"],
+            media_type="application/zip"
+        )
+
     if len(successful_results) == 1:
         # Single file - return directly
         file_path = Path(successful_results[0]["path"])
@@ -230,9 +240,10 @@ def should_zip_output(output_dir):
     all_items = list(output_path.iterdir())
     files = [f for f in all_items if f.is_file()]
     dirs = [d for d in all_items if d.is_dir()]
-    
+    is_zipp_output = len(dirs) > 0 or len(files) > 2
     # Zip if subdirectories exist or more than 2 files
-    return len(dirs) > 0 or len(files) > 2
+    print (f"is_zipp_output = {is_zipp_output}")
+    return is_zipp_output
 
 def create_zip_output(output_dir, job_id):
     """
@@ -264,12 +275,13 @@ def create_zip_output(output_dir, job_id):
     print(f"✅ Zip created: {zip_path}")
     return zip_path
 
+
 async def process_job(job_id: str, file_paths: List[Path], processor_type: str, output_dir: Path):
-    """Background job processor"""
+    """Background job processor with fixed ZIP handling"""
     logger.info(f"Starting background processing for job {job_id}")
     logger.info(f"Output directory: {output_dir}")
     
-    # Temporary list for results
+    # Temporary list for results during processing
     temp_results = []
     
     for i, file_path in enumerate(file_paths):
@@ -309,12 +321,14 @@ async def process_job(job_id: str, file_paths: List[Path], processor_type: str, 
             else:  # scan_verify
                 output_file = await scan_and_verify(file_path, output_dir)
             
+            # Build result entry
             result = {
                 "filename": file_path.name,
-                "output_filename": output_file.name,
-                "path": str(output_file),
+                "output_filename": output_file.name if output_file else "error",
+                "path": str(output_file) if output_file else "",
                 "index": i,
-                "success": True
+                "success": True if output_file else False,
+                "type": "text/html" if str(output_file).endswith('.html') else "application/octet-stream"
             }
             
             temp_results.append(result)
@@ -328,19 +342,26 @@ async def process_job(job_id: str, file_paths: List[Path], processor_type: str, 
             temp_results.append({
                 "filename": file_path.name,
                 "error": str(e),
-                "index": i
+                "index": i,
+                "success": False
             })
             jobs[job_id]["completed"] += 1
     
-    # THIS MUST BE AT THE SAME INDENTATION AS THE FOR LOOP
-    logger.info(f"DEBUG: Processing complete, checking if should zip...")
+    # CRITICAL FIX: Set results FIRST before checking for zipping
+    jobs[job_id]["results"] = temp_results
+    logger.info(f"Initial results set: {len(temp_results)} files")
     
+    # Now check if we should create a ZIP
     if processor_type in ["word_complete", "word_to_html"]:
+        logger.info(f"Checking if should zip for processor: {processor_type}")
+        
         if should_zip_output(output_dir):
+            logger.info(f"Creating ZIP for {len(temp_results)} files")
+            
+            # Create the ZIP file
             zip_file = create_zip_output(output_dir, job_id)
             
-            logger.info(f"DEBUG: REPLACING RESULTS WITH ZIP")
-            
+            # Create ZIP result entry
             zip_result = {
                 "filename": zip_file.name,
                 "output_filename": zip_file.name,
@@ -351,15 +372,17 @@ async def process_job(job_id: str, file_paths: List[Path], processor_type: str, 
                 "type": "application/zip"
             }
             
+            # CRITICAL: Replace ALL results with just the ZIP
             jobs[job_id]["results"] = [zip_result]
-            logger.info(f"✅ ZIP REPLACEMENT DONE: {jobs[job_id]['results']}")
+            logger.info(f"✅ Results replaced with ZIP: {zip_file.name}")
+            logger.info(f"Final results count: {len(jobs[job_id]['results'])}")
         else:
-            jobs[job_id]["results"] = temp_results
-    else:
-        jobs[job_id]["results"] = temp_results
+            logger.info(f"No zipping needed - keeping {len(temp_results)} individual files")
     
+    # Mark job as completed
     jobs[job_id]["status"] = "completed"
     logger.info(f"=== JOB {job_id} COMPLETED ===")
+    logger.info(f"Final job results: {[r.get('output_filename', r.get('filename')) for r in jobs[job_id]['results']]}")
 
 async def process_job_old(job_id: str, file_paths: List[Path], processor_type: str, output_dir: Path):
     """Background job processor"""
