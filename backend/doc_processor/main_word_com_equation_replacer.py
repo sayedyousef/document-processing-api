@@ -9,6 +9,7 @@ import json
 import zipfile
 from lxml import etree
 import traceback
+import shutil
 
 # Add parent directory to path for imports
 sys.path.append(str(Path(__file__).parent.parent))
@@ -111,8 +112,11 @@ class WordCOMEquationReplacer:
         self.latex_equations = self._extract_and_convert_equations(docx_path)
         
         if not self.latex_equations:
-            print("⚠ No equations extracted, aborting...")
-            return None
+            print("⚠ No equations found, returning original document")
+            if not output_path:
+                output_path = docx_path.parent / f"{docx_path.stem}_processed.docx"
+            shutil.copy(docx_path, output_path)
+            return output_path  # Return valid path
         
         try:
             # STEP 2: Open document with Word COM for replacement

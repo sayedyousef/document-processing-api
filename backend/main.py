@@ -24,7 +24,7 @@ logging.basicConfig(
     format='%(asctime)s - %(levelname)s - %(message)s',
     handlers=[
         logging.StreamHandler(sys.stdout),
-        logging.FileHandler('processing.log')
+        logging.FileHandler('processing.log',encoding='utf-8')
     ]
 )
 logger = logging.getLogger(__name__)
@@ -250,6 +250,26 @@ async def process_job(job_id: str, file_paths: List[Path], processor_type: str, 
                 # Convert to Path for consistency with other processors
                 if output_file:
                     output_file = Path(output_file)
+            elif processor_type == "word_complete":
+                #from full-word-processor.word_com_equation_replacer import WordCOMEquationReplacer
+                from full_word_processor.WordFullProcessor import WordFullProcessor
+                
+                
+                # Step 1: Process equations
+                replacer = WordCOMEquationReplacer()
+                equations_filename = f"{Path(file_path).stem}_equations.docx"
+                equations_path = os.path.join(output_dir, equations_filename)
+                
+                equations_doc = replacer.process_document(file_path, equations_path)
+                
+                # Step 2: Convert to HTML
+                if equations_doc:
+                    processor = WordFullProcessor()
+                    output_file = processor.process_document(equations_doc, output_dir)
+                else:
+                    # If equation processing failed, use original
+                    processor = WordFullProcessor()
+                    output_file = processor.process_document(file_path, output_dir)
             
             else:  # scan_verify
                 output_file = await scan_and_verify(file_path, output_dir)

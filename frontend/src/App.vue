@@ -8,8 +8,10 @@
         <label class="block text-sm font-medium text-gray-700 mb-2">Select Processor</label>
         <select v-model="processorType" class="w-full px-3 py-2 border border-gray-300 rounded-md">
           <option value="latex_equations">Extract LaTeX Equations</option>
+          <option value="word_complete">Complete Word conversion to HTML</option>
           <option value="scan_verify">Scan & Verify Documents</option>
           <option value="word_to_html">Convert to HTML</option>
+
         </select>
       </div>
       
