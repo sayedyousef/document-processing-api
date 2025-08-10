@@ -264,8 +264,104 @@ def create_zip_output(output_dir, job_id):
     print(f"✅ Zip created: {zip_path}")
     return zip_path
 
-
 async def process_job(job_id: str, file_paths: List[Path], processor_type: str, output_dir: Path):
+    """Background job processor"""
+    logger.info(f"Starting background processing for job {job_id}")
+    logger.info(f"Output directory: {output_dir}")
+    
+    # Temporary list for results
+    temp_results = []
+    
+    for i, file_path in enumerate(file_paths):
+        try:
+            logger.info(f"Processing file {i+1}/{len(file_paths)}: {file_path.name}")
+            
+            if processor_type == "word_to_html":
+                from full_word_processor.WordFullProcessor import WordFullProcessor
+                processor = WordFullProcessor()
+                output_file = processor.process_document(str(file_path), str(output_dir))
+            
+            elif processor_type == "latex_equations":
+                replacer = WordCOMEquationReplacer()
+                output_filename = f"{Path(file_path).stem}_latex_equations.docx"
+                output_path = os.path.join(output_dir, output_filename)
+                output_file = replacer.process_document(file_path, output_path)
+                if output_file:
+                    output_file = Path(output_file)
+                    
+            elif processor_type == "word_complete":
+                from full_word_processor.WordFullProcessor import WordFullProcessor
+                
+                # Step 1: Process equations
+                replacer = WordCOMEquationReplacer()
+                equations_filename = f"{Path(file_path).stem}_equations.docx"
+                equations_path = os.path.join(output_dir, equations_filename)
+                equations_doc = replacer.process_document(file_path, equations_path)
+                
+                # Step 2: Convert to HTML
+                if equations_doc:
+                    processor = WordFullProcessor()
+                    output_file = processor.process_document(equations_doc, output_dir)
+                else:
+                    processor = WordFullProcessor()
+                    output_file = processor.process_document(file_path, output_dir)
+            
+            else:  # scan_verify
+                output_file = await scan_and_verify(file_path, output_dir)
+            
+            result = {
+                "filename": file_path.name,
+                "output_filename": output_file.name,
+                "path": str(output_file),
+                "index": i,
+                "success": True
+            }
+            
+            temp_results.append(result)
+            jobs[job_id]["completed"] += 1
+            
+            logger.info(f"Successfully processed: {file_path.name}")
+            logger.info(f"  Output: {output_file}")
+            
+        except Exception as e:
+            logger.error(f"Failed to process {file_path.name}: {str(e)}")
+            temp_results.append({
+                "filename": file_path.name,
+                "error": str(e),
+                "index": i
+            })
+            jobs[job_id]["completed"] += 1
+    
+    # THIS MUST BE AT THE SAME INDENTATION AS THE FOR LOOP
+    logger.info(f"DEBUG: Processing complete, checking if should zip...")
+    
+    if processor_type in ["word_complete", "word_to_html"]:
+        if should_zip_output(output_dir):
+            zip_file = create_zip_output(output_dir, job_id)
+            
+            logger.info(f"DEBUG: REPLACING RESULTS WITH ZIP")
+            
+            zip_result = {
+                "filename": zip_file.name,
+                "output_filename": zip_file.name,
+                "path": str(zip_file),
+                "index": 0,
+                "success": True,
+                "size": zip_file.stat().st_size,
+                "type": "application/zip"
+            }
+            
+            jobs[job_id]["results"] = [zip_result]
+            logger.info(f"✅ ZIP REPLACEMENT DONE: {jobs[job_id]['results']}")
+        else:
+            jobs[job_id]["results"] = temp_results
+    else:
+        jobs[job_id]["results"] = temp_results
+    
+    jobs[job_id]["status"] = "completed"
+    logger.info(f"=== JOB {job_id} COMPLETED ===")
+
+async def process_job_old(job_id: str, file_paths: List[Path], processor_type: str, output_dir: Path):
     """Background job processor"""
     logger.info(f"Starting background processing for job {job_id}")
     logger.info(f"Output directory: {output_dir}")
