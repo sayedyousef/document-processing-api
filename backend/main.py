@@ -120,10 +120,14 @@ async def get_status(job_id: str):
         "results": job.get("results", [])
     }
 
+"""
+Add this to your main.py - Replace the download endpoints with these
+"""
+
 @app.get("/api/download/{job_id}")
-async def download_results(job_id: str):
-    """Download processed results"""
-    logger.info(f"Download request for job {job_id}")
+async def download_all_results(job_id: str):
+    """Download all processed results as ZIP or single file"""
+    logger.info(f"Download all request for job {job_id}")
     
     if job_id not in jobs:
         logger.error(f"Job {job_id} not found")
@@ -142,17 +146,17 @@ async def download_results(job_id: str):
         raise HTTPException(status_code=404, detail="No successful results")
     
     if len(successful_results) == 1:
-        # Single file
+        # Single file - return directly
         file_path = Path(successful_results[0]["path"])
         logger.info(f"Downloading single file: {file_path}")
         
         if not file_path.exists():
             logger.error(f"File not found: {file_path}")
-            raise HTTPException(status_code=404, detail=f"File not found: {file_path}")
+            raise HTTPException(status_code=404, detail=f"File not found")
         
         return FileResponse(
             path=str(file_path),
-            filename=successful_results[0]["output_filename"]
+            filename=successful_results[0].get("output_filename", successful_results[0]["filename"])
         )
     else:
         # Multiple files - create ZIP
@@ -163,13 +167,47 @@ async def download_results(job_id: str):
             for result in successful_results:
                 file_path = Path(result["path"])
                 if file_path.exists():
-                    zipf.write(file_path, result["output_filename"])
-                    logger.info(f"Added to ZIP: {result['output_filename']}")
+                    output_name = result.get("output_filename", result["filename"])
+                    zipf.write(file_path, output_name)
+                    logger.info(f"Added to ZIP: {output_name}")
         
         return FileResponse(
             path=str(zip_path),
             filename=f"results_{job_id}.zip"
         )
+
+@app.get("/api/download/{job_id}/{index}")
+async def download_single_result(job_id: str, index: int):
+    """Download a single result file by index"""
+    logger.info(f"Download single file request: job={job_id}, index={index}")
+    
+    if job_id not in jobs:
+        logger.error(f"Job {job_id} not found")
+        raise HTTPException(status_code=404, detail="Job not found")
+    
+    job = jobs[job_id]
+    
+    # Filter successful results only
+    successful_results = [r for r in job["results"] if "error" not in r]
+    
+    if index >= len(successful_results):
+        logger.error(f"Invalid file index: {index}")
+        raise HTTPException(status_code=404, detail="Invalid file index")
+    
+    result = successful_results[index]
+    file_path = Path(result["path"])
+    
+    if not file_path.exists():
+        logger.error(f"File not found: {file_path}")
+        raise HTTPException(status_code=404, detail=f"File not found")
+    
+    logger.info(f"Serving file: {file_path}")
+    
+    return FileResponse(
+        path=str(file_path),
+        filename=result.get("output_filename", result["filename"]),
+        media_type="application/octet-stream"
+    )
 
 async def process_job(job_id: str, file_paths: List[Path], processor_type: str, output_dir: Path):
     """Background job processor"""
