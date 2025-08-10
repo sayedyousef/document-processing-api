@@ -81,10 +81,19 @@ export default {
     }
     
     const handleCompleted = (jobResults) => {
-      console.log('Job completed, results:', jobResults)
+      console.log('[App] Job completed event received')
+      console.log('[App] Results:', jobResults)
+      
+      if (!jobResults || jobResults.length === 0) {
+        console.warn('[App] No results received!')
+        alert('Job completed but no results found. Check console for details.')
+      }
+      
       results.value = jobResults
-      completedJobId.value = jobId.value  // Save the completed job ID
-      jobId.value = null  // Clear current job ID
+      completedJobId.value = jobId.value
+      jobId.value = null
+      
+      console.log('[App] State updated - results:', results.value.length, 'completedJobId:', completedJobId.value)
     }
     
     const resetProcessor = () => {

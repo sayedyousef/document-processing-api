@@ -40,10 +40,16 @@
            status.processor === 'word_complete' ? 'Complete Word to HTML Processing' :
            'Processing' }}
       </div>
-    </div> <!-- Closes space-y-3 -->
-  </div> <!-- Closes main container -->
+      
+      <!-- Debug info (remove in production) -->
+      <div v-if="debugMode" class="text-xs text-gray-500 mt-2 p-2 bg-gray-100 rounded">
+        <p>Job ID: {{ jobId }}</p>
+        <p>Status checks: {{ checkCount }}</p>
+        <p>Last check: {{ lastCheckTime }}</p>
+      </div>
+    </div>
+  </div>
 </template>
-
 
 <script>
 import { ref, computed, onMounted, onUnmounted } from 'vue'
@@ -55,6 +61,10 @@ export default {
   setup(props, { emit }) {
     const status = ref(null)
     const polling = ref(null)
+    const checkCount = ref(0)
+    const lastCheckTime = ref('')
+    const debugMode = ref(true) // Set to false in production
+    const maxChecks = 60 // Maximum checks before timeout (2 min with 2 sec intervals)
     
     const progressPercentage = computed(() => {
       if (!status.value || !status.value.progress) return 0
@@ -63,25 +73,60 @@ export default {
     })
     
     const checkStatus = async () => {
+      checkCount.value++
+      lastCheckTime.value = new Date().toLocaleTimeString()
+      
+      console.log(`[JobStatus] Check #${checkCount.value} for job ${props.jobId}`)
+      
+      // Timeout check
+      if (checkCount.value > maxChecks) {
+        console.error('[JobStatus] Max checks reached, stopping polling')
+        clearInterval(polling.value)
+        status.value = { status: 'timeout', progress: '0/0' }
+        return
+      }
+      
       try {
         const response = await axios.get(`http://localhost:8000/api/status/${props.jobId}`)
+        console.log('[JobStatus] Response:', response.data)
+        
         status.value = response.data
         
         if (response.data.status === 'completed') {
+          console.log('[JobStatus] Job completed! Results:', response.data.results)
           clearInterval(polling.value)
-          emit('completed', response.data.results)
+          
+          // Emit completed event with results
+          if (response.data.results && response.data.results.length > 0) {
+            console.log('[JobStatus] Emitting completed event with results')
+            emit('completed', response.data.results)
+          } else {
+            console.warn('[JobStatus] Job completed but no results found')
+            emit('completed', [])
+          }
+        } else if (response.data.status === 'failed') {
+          console.error('[JobStatus] Job failed:', response.data.error)
+          clearInterval(polling.value)
         }
       } catch (error) {
-        console.error('Status check failed:', error)
+        console.error('[JobStatus] Status check failed:', error)
+        
+        // Don't stop polling on network errors unless too many failures
+        if (checkCount.value > 10) {
+          clearInterval(polling.value)
+          status.value = { status: 'error', progress: '0/0' }
+        }
       }
     }
     
     onMounted(() => {
+      console.log('[JobStatus] Component mounted, starting polling for job:', props.jobId)
       checkStatus()
       polling.value = setInterval(checkStatus, 2000)
     })
     
     onUnmounted(() => {
+      console.log('[JobStatus] Component unmounting, stopping polling')
       if (polling.value) {
         clearInterval(polling.value)
       }
@@ -89,7 +134,11 @@ export default {
     
     return {
       status,
-      progressPercentage
+      progressPercentage,
+      checkCount,
+      lastCheckTime,
+      debugMode,
+      jobId: props.jobId
     }
   }
 }
