@@ -14,7 +14,9 @@ from .mammoth_handler import MammothHandler
 from .html_generator import HTMLGenerator
 from .models import ProcessingContext
 
-class WordFullProcessor(BaseProcessor):
+#class WordFullProcessor(BaseProcessor):
+class WordFullProcessor():
+
     """
     Word to HTML processor for documents with equations already processed.
     Handles: document parsing, footnotes, images, and HTML generation
