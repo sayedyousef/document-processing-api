@@ -14,8 +14,8 @@ import traceback
 sys.path.append(str(Path(__file__).parent.parent))
 #from core.logger import setup_logging
 from core.logger import setup_logger  # <- Direct import from same directory
+from doc_processor.omml_2_latex import DirectOmmlToLatex
 
-from omml_2_latex import DirectOmmlToLatex
 
 logger = setup_logger("word_com_replacer")
 
