@@ -1,0 +1,9 @@
+fastapi==0.109.0
+uvicorn==0.27.0
+python-multipart==0.0.6
+pywin32==306
+python-mammoth==1.7.1
+python-docx==1.1.0
+pandas==2.1.4
+openpyxl==3.1.2
+aiofiles==23.2.1
