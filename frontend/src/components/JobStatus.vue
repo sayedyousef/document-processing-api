@@ -34,8 +34,9 @@
         <!-- Processor type -->
         <div class="text-sm text-gray-600">
           <span class="font-medium">Processor:</span> 
-          {{ status.processor === 'scan_verify' ? 'Document Analysis' : 'HTML Conversion' }}
-        </div>
+          {{ status.processor === 'scan_verify' ? 'Document Analysis' : 
+   status.processor === 'word_to_html' ? 'HTML Conversion' : 
+   'LaTeX Equation Extraction' }}        </div>
       </div>
     </div>
   </template>

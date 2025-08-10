@@ -1,8 +1,8 @@
 # ============= document_processor.py =============
 """Combined document processor with batch capabilities"""
 from pathlib import Path
-from config import Config
-from logger import setup_logger
+from core.config import Config
+from core.logger import setup_logger
 from equation_replacer2 import DocumentEquationReplacer
 from doc_to_html_latex2 import DocumentToHTMLWithLatex
 import json

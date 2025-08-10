@@ -12,6 +12,9 @@ from typing import List
 import zipfile
 import logging
 import sys
+import os
+
+from doc_processor.latex_processor  import process_word_document, save_results
 
 # Setup simple logging to console
 logging.basicConfig(
@@ -218,9 +221,28 @@ async def process_job(job_id: str, file_paths: List[Path], processor_type: str, 
         try:
             logger.info(f"Processing file {i+1}/{len(file_paths)}: {file_path.name}")
             
+            '''
             if processor_type == "word_to_html":
                 # Simple HTML conversion
                 output_file = await convert_to_html(file_path, output_dir)
+            else:  # scan_verify
+                output_file = await scan_and_verify(file_path, output_dir)
+            if processor_type == "word_to_html":
+                # Simple HTML conversion
+                output_file = await convert_to_html(file_path, output_dir)
+            '''
+            
+            if processor_type == "word_to_html":
+                # Simple HTML conversion
+                output_file = await convert_to_html(file_path, output_dir)
+            
+            # ADD THIS ELIF before the else
+            elif processor_type == "latex_equations":
+                # Process LaTeX equations
+                results = process_word_document(file_path)
+                output_file = os.path.join(output_dir, f"equations_{job_id}.tex")
+                save_results(results, output_file)
+            
             else:  # scan_verify
                 output_file = await scan_and_verify(file_path, output_dir)
             
