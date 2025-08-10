@@ -12,15 +12,15 @@
           <svg class="h-5 w-5 text-green-500" fill="currentColor" viewBox="0 0 20 20">
             <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" />
           </svg>
-          <!--<span class="text-sm font-medium">{{ result.filename }}</span> -->
-          <p class="font-medium">{{ result.filename }}</p>
+          <div>
+            <p class="font-medium">{{ result.filename }}</p>
             <p class="text-sm text-gray-600">
               {{ formatFileSize(result.size) }}
               <span v-if="result.type === 'application/zip'" class="ml-2 text-blue-600">
                 (Multiple files packaged)
               </span>
             </p>
-
+          </div>
         </div>
         
         <div class="flex items-center space-x-2">
@@ -30,7 +30,7 @@
             @click="downloadFile(index)"
             class="px-3 py-1 bg-blue-500 text-white text-sm rounded hover:bg-blue-600 transition-colors"
           >
-            Download
+            {{ result.type === 'application/zip' ? '📦 Download ZIP' : 'Download' }}
           </button>
         </div>
       </div>
@@ -64,24 +64,33 @@ export default {
       return props.results.some(r => r.error)
     })
     
+    // FORMAT FILE SIZE FUNCTION
+    const formatFileSize = (bytes) => {
+      console.log('[ResultDownload] Formatting file size:', bytes)
+      if (!bytes || bytes === 0) return '0 Bytes'
+      const k = 1024
+      const sizes = ['Bytes', 'KB', 'MB', 'GB']
+      const i = Math.floor(Math.log(bytes) / Math.log(k))
+      return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i]
+    }
+    
     const downloadFile = (index) => {
-      // Use the jobId from props for download
       const url = `http://localhost:8000/api/download/${props.jobId}/${index}`
-      console.log('Downloading from:', url)
+      console.log('[ResultDownload] Downloading file from:', url)
+      console.log('[ResultDownload] File info:', props.results[index])
       
       // Create download link
       const link = document.createElement('a')
       link.href = url
-      link.download = props.results[index].output_filename || props.results[index].filename
+      link.download = props.results[index].filename || `download_${index}`
       document.body.appendChild(link)
       link.click()
       document.body.removeChild(link)
     }
     
     const downloadAll = () => {
-      // Download ZIP with all results
       const url = `http://localhost:8000/api/download/${props.jobId}`
-      console.log('Downloading ZIP from:', url)
+      console.log('[ResultDownload] Downloading all as ZIP from:', url)
       
       const link = document.createElement('a')
       link.href = url
@@ -91,10 +100,13 @@ export default {
       document.body.removeChild(link)
     }
     
+    console.log('[ResultDownload] Component setup with results:', props.results)
+    
     return {
       downloadFile,
       downloadAll,
-      hasErrors
+      hasErrors,
+      formatFileSize  // ← THIS WAS MISSING! Must be returned
     }
   }
 }
