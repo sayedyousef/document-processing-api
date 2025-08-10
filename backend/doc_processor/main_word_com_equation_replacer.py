@@ -12,10 +12,12 @@ import traceback
 
 # Add parent directory to path for imports
 sys.path.append(str(Path(__file__).parent.parent))
-from core.logger import setup_logging
+#from core.logger import setup_logging
+from core.logger import setup_logger  # <- Direct import from same directory
+
 from omml_2_latex import DirectOmmlToLatex
 
-logger = setup_logging("word_com_replacer")
+logger = setup_logger("word_com_replacer")
 
 class WordCOMEquationReplacer:
     """Hybrid approach: ZIP extraction for conversion, Word COM for replacement"""
