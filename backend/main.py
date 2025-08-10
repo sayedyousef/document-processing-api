@@ -264,7 +264,6 @@ def create_zip_output(output_dir, job_id):
     print(f"✅ Zip created: {zip_path}")
     return zip_path
 
-
 async def process_job(job_id: str, file_paths: List[Path], processor_type: str, output_dir: Path):
     """Background job processor"""
     logger.info(f"Starting background processing for job {job_id}")
@@ -365,7 +364,7 @@ async def process_job(job_id: str, file_paths: List[Path], processor_type: str, 
             print(f"\n📦 Output zipped due to multiple files/folders")
             '''
 
-                    # Create new results with ONLY the ZIP
+            # Create new results with ONLY the ZIP
             zip_result = {
                 "filename": zip_file.name,
                 "output_filename": zip_file.name,
@@ -385,7 +384,7 @@ async def process_job(job_id: str, file_paths: List[Path], processor_type: str, 
             # Add individual files to results
             for file in output_dir.iterdir():
                 if file.is_file():
-                    results.append({
+                    jobs[job_id]["results"].append({  # FIX: Changed 'results' to 'jobs[job_id]["results"]'
                         "filename": file.name,
                         "size": file.stat().st_size,
                         "type": "text/html" if file.suffix == ".html" else "application/octet-stream"
@@ -394,7 +393,7 @@ async def process_job(job_id: str, file_paths: List[Path], processor_type: str, 
         # For other processors, list files normally
         for file in output_dir.iterdir():
             if file.is_file():
-                results.append({
+                jobs[job_id]["results"].append({  # FIX: Changed 'results' to 'jobs[job_id]["results"]'
                     "filename": file.name,
                     "size": file.stat().st_size,
                     "type": "application/octet-stream"
