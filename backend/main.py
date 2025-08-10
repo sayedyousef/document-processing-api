@@ -356,13 +356,31 @@ async def process_job(job_id: str, file_paths: List[Path], processor_type: str, 
             zip_file = create_zip_output(output_dir, job_id)
             
             # Clear results and add only zip
+            '''
             results = [{
                 "filename": zip_file.name,
                 "size": zip_file.stat().st_size,
                 "type": "application/zip"
             }]
-            
             print(f"\n📦 Output zipped due to multiple files/folders")
+            '''
+
+                    # Create new results with ONLY the ZIP
+            zip_result = {
+                "filename": zip_file.name,
+                "output_filename": zip_file.name,
+                "path": str(zip_file),
+                "index": 0,
+                "success": True,
+                "size": zip_file.stat().st_size,
+                "type": "application/zip"
+            }
+            
+            # REPLACE all results with just the ZIP
+            jobs[job_id]["results"] = [zip_result]  # Direct assignment
+            
+            logger.info(f"📦 Results replaced with ZIP: {jobs[job_id]['results']}")
+
         else:
             # Add individual files to results
             for file in output_dir.iterdir():
