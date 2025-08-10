@@ -265,11 +265,11 @@ async def process_job(job_id: str, file_paths: List[Path], processor_type: str, 
             jobs[job_id]["results"].append(result)
             jobs[job_id]["completed"] += 1
             
-            logger.info(f"✓ Successfully processed: {file_path.name}")
+            logger.info(f"Successfully processed: {file_path.name}")
             logger.info(f"  Output: {output_file}")
             
         except Exception as e:
-            logger.error(f"✗ Failed to process {file_path.name}: {str(e)}")
+            logger.error(f"Failed to process {file_path.name}: {str(e)}")
             jobs[job_id]["results"].append({
                 "filename": file_path.name,
                 "error": str(e),
