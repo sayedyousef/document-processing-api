@@ -207,11 +207,13 @@ async def download_single_result(job_id: str, index: int):
         raise HTTPException(status_code=404, detail=f"File not found")
     
     logger.info(f"Serving file: {file_path}")
+
+    media_type = result.get("type", "application/octet-stream")  # ADD THIS LINE
     
     return FileResponse(
         path=str(file_path),
         filename=result.get("output_filename", result["filename"]),
-        media_type="application/octet-stream"
+        media_type=media_type  
     )
 
 
@@ -347,38 +349,38 @@ async def process_job(job_id: str, file_paths: List[Path], processor_type: str, 
             jobs[job_id]["completed"] += 1
     
 
-        # After all processing, check if we should zip
-        if processor_type in ["word_complete", "word_to_html"]:
-            if should_zip_output(output_dir):
-                # Create zip file
-                zip_file = create_zip_output(output_dir, job_id)
-                
-                # Clear results and add only zip
-                results = [{
-                    "filename": zip_file.name,
-                    "size": zip_file.stat().st_size,
-                    "type": "application/zip"
-                }]
-                
-                print(f"\n📦 Output zipped due to multiple files/folders")
-            else:
-                # Add individual files to results
-                for file in output_dir.iterdir():
-                    if file.is_file():
-                        results.append({
-                            "filename": file.name,
-                            "size": file.stat().st_size,
-                            "type": "text/html" if file.suffix == ".html" else "application/octet-stream"
-                        })
+    # After all processing, check if we should zip
+    if processor_type in ["word_complete", "word_to_html"]:
+        if should_zip_output(output_dir):
+            # Create zip file
+            zip_file = create_zip_output(output_dir, job_id)
+            
+            # Clear results and add only zip
+            results = [{
+                "filename": zip_file.name,
+                "size": zip_file.stat().st_size,
+                "type": "application/zip"
+            }]
+            
+            print(f"\n📦 Output zipped due to multiple files/folders")
         else:
-            # For other processors, list files normally
+            # Add individual files to results
             for file in output_dir.iterdir():
                 if file.is_file():
                     results.append({
                         "filename": file.name,
                         "size": file.stat().st_size,
-                        "type": "application/octet-stream"
+                        "type": "text/html" if file.suffix == ".html" else "application/octet-stream"
                     })
+    else:
+        # For other processors, list files normally
+        for file in output_dir.iterdir():
+            if file.is_file():
+                results.append({
+                    "filename": file.name,
+                    "size": file.stat().st_size,
+                    "type": "application/octet-stream"
+                })
         
 
     jobs[job_id]["status"] = "completed"
@@ -396,7 +398,7 @@ async def convert_to_html(input_file: Path, output_dir: Path) -> Path:
     
     # Create HTML with Arabic support
     html_content = f"""<!DOCTYPE html>
-<html lang="ar" dir="rtl">
+<html lang="ar" xx="1" dir="rtl">
 <head>
     <meta charset="UTF-8">
     <title>{input_file.stem}</title>
@@ -412,6 +414,16 @@ async def convert_to_html(input_file: Path, output_dir: Path) -> Path:
         h1, h2, h3 {{ color: #333; }}
         img {{ max-width: 100%; height: auto; }}
     </style>
+        <script>
+      window.MathJax = {
+        tex: {
+          inlineMath: [['\\(', '\\)']],
+          displayMath: [['\\[', '\\]']]
+        }
+      };
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml.js"></script>
+
 </head>
 <body>
 {result.value}
