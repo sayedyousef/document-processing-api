@@ -1,7 +1,7 @@
 <template>
   <div v-if="status" class="max-w-xl mx-auto mt-6 p-6 bg-white rounded-lg shadow-md">
     <h3 class="text-lg font-semibold mb-4">Processing Status</h3>
-    
+
     <div class="space-y-3">
       <!-- Status indicator -->
       <div class="flex items-center space-x-3">
@@ -16,7 +16,7 @@
         </div>
         <span class="font-medium capitalize">{{ status.status }}</span>
       </div>
-      
+
       <!-- Progress -->
       <div>
         <div class="flex justify-between text-sm text-gray-600 mb-1">
@@ -30,7 +30,7 @@
           ></div>
         </div>
       </div>
-      
+
       <!-- Processor type -->
       <div class="text-sm text-gray-600">
         <span class="font-medium">Processor:</span> 
@@ -43,6 +43,7 @@
     </div> <!-- Closes space-y-3 -->
   </div> <!-- Closes main container -->
 </template>
+
 
 <script>
 import { ref, computed, onMounted, onUnmounted } from 'vue'
