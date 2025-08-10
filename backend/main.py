@@ -264,10 +264,14 @@ def create_zip_output(output_dir, job_id):
     print(f"✅ Zip created: {zip_path}")
     return zip_path
 
+
 async def process_job(job_id: str, file_paths: List[Path], processor_type: str, output_dir: Path):
     """Background job processor"""
     logger.info(f"Starting background processing for job {job_id}")
     logger.info(f"Output directory: {output_dir}")
+    
+    # ONLY ADD THIS LINE - temporary results during processing
+    temp_results = []
     
     for i, file_path in enumerate(file_paths):
         try:
@@ -332,7 +336,7 @@ async def process_job(job_id: str, file_paths: List[Path], processor_type: str, 
                 "success": True
             }
             
-            jobs[job_id]["results"].append(result)
+            temp_results.append(result)  # CHANGE: temp_results instead of jobs[job_id]["results"]
             jobs[job_id]["completed"] += 1
             
             logger.info(f"Successfully processed: {file_path.name}")
@@ -340,7 +344,7 @@ async def process_job(job_id: str, file_paths: List[Path], processor_type: str, 
             
         except Exception as e:
             logger.error(f"Failed to process {file_path.name}: {str(e)}")
-            jobs[job_id]["results"].append({
+            temp_results.append({  # CHANGE: temp_results instead of jobs[job_id]["results"]
                 "filename": file_path.name,
                 "error": str(e),
                 "index": i
@@ -382,6 +386,7 @@ async def process_job(job_id: str, file_paths: List[Path], processor_type: str, 
 
         else:
             # Add individual files to results
+            jobs[job_id]["results"] = temp_results  # ADD: Set results from temp
             for file in output_dir.iterdir():
                 if file.is_file():
                     jobs[job_id]["results"].append({  # FIX: Changed 'results' to 'jobs[job_id]["results"]'
@@ -391,6 +396,7 @@ async def process_job(job_id: str, file_paths: List[Path], processor_type: str, 
                     })
     else:
         # For other processors, list files normally
+        jobs[job_id]["results"] = temp_results  # ADD: Set results from temp
         for file in output_dir.iterdir():
             if file.is_file():
                 jobs[job_id]["results"].append({  # FIX: Changed 'results' to 'jobs[job_id]["results"]'
@@ -402,6 +408,7 @@ async def process_job(job_id: str, file_paths: List[Path], processor_type: str, 
 
     jobs[job_id]["status"] = "completed"
     logger.info(f"=== JOB {job_id} COMPLETED ===")
+
 
 async def convert_to_html(input_file: Path, output_dir: Path) -> Path:
     """Simple HTML conversion using mammoth"""
