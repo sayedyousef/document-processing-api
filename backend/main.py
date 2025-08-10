@@ -214,6 +214,55 @@ async def download_single_result(job_id: str, index: int):
         media_type="application/octet-stream"
     )
 
+
+def should_zip_output(output_dir):
+    """
+    Determine if output should be zipped
+    Returns True if:
+    - More than 2 files in output
+    - Any subdirectories exist
+    """
+    output_path = Path(output_dir)
+    
+    # Get all files and dirs
+    all_items = list(output_path.iterdir())
+    files = [f for f in all_items if f.is_file()]
+    dirs = [d for d in all_items if d.is_dir()]
+    
+    # Zip if subdirectories exist or more than 2 files
+    return len(dirs) > 0 or len(files) > 2
+
+def create_zip_output(output_dir, job_id):
+    """
+    Create a zip file of the output directory
+    """
+    output_path = Path(output_dir)
+    zip_filename = f"{job_id}_output.zip"
+    zip_path = output_path / zip_filename
+    
+    print(f"\n📦 Creating zip file: {zip_filename}")
+    
+    with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
+        # Add all files and folders
+        for item in output_path.iterdir():
+            if item.name != zip_filename:  # Don't include the zip itself
+                if item.is_file():
+                    zipf.write(item, item.name)
+                    print(f"  Added file: {item.name}")
+                elif item.is_dir():
+                    # Add directory and its contents
+                    for root, dirs, files in os.walk(item):
+                        root_path = Path(root)
+                        for file in files:
+                            file_path = root_path / file
+                            arcname = file_path.relative_to(output_path)
+                            zipf.write(file_path, arcname)
+                            print(f"  Added: {arcname}")
+    
+    print(f"✅ Zip created: {zip_path}")
+    return zip_path
+
+
 async def process_job(job_id: str, file_paths: List[Path], processor_type: str, output_dir: Path):
     """Background job processor"""
     logger.info(f"Starting background processing for job {job_id}")
@@ -297,6 +346,41 @@ async def process_job(job_id: str, file_paths: List[Path], processor_type: str, 
             })
             jobs[job_id]["completed"] += 1
     
+
+        # After all processing, check if we should zip
+        if processor_type in ["word_complete", "word_to_html"]:
+            if should_zip_output(output_dir):
+                # Create zip file
+                zip_file = create_zip_output(output_dir, job_id)
+                
+                # Clear results and add only zip
+                results = [{
+                    "filename": zip_file.name,
+                    "size": zip_file.stat().st_size,
+                    "type": "application/zip"
+                }]
+                
+                print(f"\n📦 Output zipped due to multiple files/folders")
+            else:
+                # Add individual files to results
+                for file in output_dir.iterdir():
+                    if file.is_file():
+                        results.append({
+                            "filename": file.name,
+                            "size": file.stat().st_size,
+                            "type": "text/html" if file.suffix == ".html" else "application/octet-stream"
+                        })
+        else:
+            # For other processors, list files normally
+            for file in output_dir.iterdir():
+                if file.is_file():
+                    results.append({
+                        "filename": file.name,
+                        "size": file.stat().st_size,
+                        "type": "application/octet-stream"
+                    })
+        
+
     jobs[job_id]["status"] = "completed"
     logger.info(f"=== JOB {job_id} COMPLETED ===")
 
