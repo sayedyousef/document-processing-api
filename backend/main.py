@@ -351,13 +351,20 @@ async def process_job(job_id: str, file_paths: List[Path], processor_type: str, 
             })
             jobs[job_id]["completed"] += 1
     
+    logger.info(f"DEBUG: temp_results has {len(temp_results)} items")
+    logger.info(f"DEBUG: processor_type = {processor_type}")
 
     # After all processing, check if we should zip
     if processor_type in ["word_complete", "word_to_html"]:
+        logger.info(f"DEBUG: Checking if should zip...")
+
         if should_zip_output(output_dir):
+            logger.info(f"DEBUG: Should zip = True")
+
             # Create zip file
             zip_file = create_zip_output(output_dir, job_id)
-            
+            logger.info(f"DEBUG: Zip created at {zip_file}")
+
             # Clear results and add only zip
             '''
             results = [{
@@ -380,12 +387,16 @@ async def process_job(job_id: str, file_paths: List[Path], processor_type: str, 
             }
             
             # REPLACE all results with just the ZIP
+            logger.info(f"DEBUG: Before replace - jobs[{job_id}]['results'] = {jobs[job_id].get('results', [])}")
             jobs[job_id]["results"] = [zip_result]  # Direct assignment
+            logger.info(f"DEBUG: After replace - jobs[{job_id}]['results'] = {jobs[job_id]['results']}")
+            logger.info(f"📦 Results replaced with ZIP: {jobs[job_id]['results'][0]['filename']}")
             
             logger.info(f"📦 Results replaced with ZIP: {jobs[job_id]['results']}")
 
         else:
             # Add individual files to results
+            logger.info(f"DEBUG: Should zip = False")
             jobs[job_id]["results"] = temp_results  # ADD: Set results from temp
             for file in output_dir.iterdir():
                 if file.is_file():
@@ -396,6 +407,8 @@ async def process_job(job_id: str, file_paths: List[Path], processor_type: str, 
                     })
     else:
         # For other processors, list files normally
+        logger.info(f"DEBUG: Other processor type: {processor_type}")
+
         jobs[job_id]["results"] = temp_results  # ADD: Set results from temp
         for file in output_dir.iterdir():
             if file.is_file():
@@ -405,6 +418,9 @@ async def process_job(job_id: str, file_paths: List[Path], processor_type: str, 
                     "type": "application/octet-stream"
                 })
         
+
+    logger.info(f"DEBUG: Final results count: {len(jobs[job_id]['results'])}")
+    logger.info(f"DEBUG: Final results: {jobs[job_id]['results']}")
 
     jobs[job_id]["status"] = "completed"
     logger.info(f"=== JOB {job_id} COMPLETED ===")
