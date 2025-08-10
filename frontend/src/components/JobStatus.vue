@@ -40,6 +40,8 @@
      status.processor === 'word_complete' ? 'Complete Word to HTML Processing' :
      'Processing' }}
 </div>
+      </div>
+    </div>
   </template>
   
   <script>
