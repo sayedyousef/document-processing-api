@@ -14,7 +14,9 @@ import logging
 import sys
 import os
 
-from doc_processor.latex_processor  import process_word_document, save_results
+#from doc_processor.latex_processor  import process_word_document, save_results
+from doc_processor.main_word_com_equation_replacer import WordCOMEquationReplacer
+
 
 # Setup simple logging to console
 logging.basicConfig(
@@ -236,12 +238,18 @@ async def process_job(job_id: str, file_paths: List[Path], processor_type: str, 
                 # Simple HTML conversion
                 output_file = await convert_to_html(file_path, output_dir)
             
-            # ADD THIS ELIF before the else
             elif processor_type == "latex_equations":
-                # Process LaTeX equations
-                results = process_word_document(file_path)
-                output_file = os.path.join(output_dir, f"equations_{job_id}.tex")
-                save_results(results, output_file)
+                # Just call your replacer directly - no await, no asyncio!
+                replacer = WordCOMEquationReplacer()
+                output_filename = f"{Path(file_path).stem}_latex_equations.docx"
+                output_path = os.path.join(output_dir, output_filename)
+                
+                # Direct synchronous call - exactly like your existing code does!
+                output_file = replacer.process_document(file_path, output_path)
+                
+                # Convert to Path for consistency with other processors
+                if output_file:
+                    output_file = Path(output_file)
             
             else:  # scan_verify
                 output_file = await scan_and_verify(file_path, output_dir)
