@@ -9,6 +9,45 @@ import re
 from lxml import etree
 
 # Symbol mapping
+class LatexCommands:
+    COMMANDS = {
+        # Your existing:
+        'sqrt': (1, False),
+        'mathbb': (1, True),
+        'frac': (2, False),
+        'binom': (2, False),
+        'neq': (0, True),
+        'alpha': (0, True),
+        
+        # ADD THESE ACCENTS:
+        'hat': (1, False),
+        'tilde': (1, False),
+        'bar': (1, False),
+        'dot': (1, False),
+        'ddot': (1, False),
+        'vec': (1, False),
+    }
+    
+    @staticmethod
+    def format(cmd, *args):
+        """Generic LaTeX formatter"""
+        if cmd not in LatexCommands.COMMANDS:
+            return '\\' + cmd  # Unknown command
+        
+        num_params, needs_space = LatexCommands.COMMANDS[cmd]
+        
+        result = '\\' + cmd
+        
+        # Add parameters with braces
+        for i in range(num_params):
+            if i < len(args):
+                result += '{' + str(args[i]) + '}'
+        
+        # Add space if needed
+        if needs_space:
+            result += ' '
+            
+        return result
 
 MATH_SYMBOLS = {
     # Comparison/Relations - ALL need space
@@ -280,7 +319,10 @@ class DirectOmmlToLatex:
             else:
                 # Generic blackboard bold for any letter
                 #return f'\\mathbb{{{text}}} '
-                return '\\mathbb{' + text + '} '
+                #return '\\mathbb{' + text + '} '
+                return LatexCommands.format('mathbb', text)      
+
+
 
 
 
@@ -347,7 +389,9 @@ class DirectOmmlToLatex:
         
         # Special case for 1/2 type fractions in superscripts
         if num in ['1', '2', '3'] and den in ['2', '3', '4']:
-            return f'\\frac{{{num}}}{{{den}}}'
+            #return f'\\frac{{{num}}}{{{den}}}'
+            return LatexCommands.format('frac', num, den)    
+
         
         # Binomial coefficient detection - only for n and k pattern (common binomial notation)
         if (len(num) == 1 and len(den) == 1 and
@@ -358,10 +402,14 @@ class DirectOmmlToLatex:
             ((num == 'n' and den == 'k') or 
             (elem.getparent() is not None and 
             elem.getparent().tag.endswith('d')))):  # Check if inside delimiters
-            return f'\\binom{{{num}}}{{{den}}}'
+            #return f'\\binom{{{num}}}{{{den}}}'
+            return LatexCommands.format('binom', num, den)
+
         
         # Regular fraction - ensure braces are always present
-        return f'\\frac{{{num}}}{{{den}}}'
+        #return f'\\frac{{{num}}}{{{den}}}'
+        return LatexCommands.format('frac', num, den)    
+
     
     def parse_sSup(self, elem):
         """Superscript - handle complex nested structures"""
@@ -387,7 +435,9 @@ class DirectOmmlToLatex:
         if not any(cmd in base for cmd in ['\\binom', '\\left', '\\right', '\\begin']):
             base = self.clean_output(base)
         
-        return f'{base}^{{{sup}}}'
+        #return f'{base}^{{{sup}}}'
+        return base + '^{' + sup + '}'
+
     
     def parse_sSub(self, elem):
         """Subscript"""
@@ -398,7 +448,9 @@ class DirectOmmlToLatex:
         sub = self.parse(sub_elem) if sub_elem is not None else ''
         
         base = self.clean_output(base)
-        return f'{base}_{{{sub}}}'
+        #return f'{base}_{{{sub}}}'
+        return base + '_{' + sub + '}'
+
     
     def parse_sSubSup(self, elem):
         """Sub and superscript"""
@@ -411,7 +463,9 @@ class DirectOmmlToLatex:
         sup = self.parse(sup_elem) if sup_elem is not None else ''
         
         base = self.clean_output(base)
-        return f'{base}_{{{sub}}}^{{{sup}}}'
+        #return f'{base}_{{{sub}}}^{{{sup}}}'
+        return base + '_{' + sub + '}^{' + sup + '}'
+
     
     def parse_nary(self, elem):
         """N-ary operations"""
@@ -448,14 +502,25 @@ class DirectOmmlToLatex:
         # Check if degree is hidden
         deg_hide = elem.find('.//m:degHide', self.ns)
         if deg_hide is not None and deg_hide.get(f'{{{self.ns["m"]}}}val') == '1':
-            return f'\\sqrt{{{expr}}}'
+            #return f'\\sqrt{{{expr}}}'
+            #return f'\\sqrt{{{expr}}}'  # f-string might be eating braces
+            return LatexCommands.format('sqrt', expr) 
+               
+
+
         
         if deg_elem is not None:
             deg_text = self.parse(deg_elem)
             if deg_text and deg_text.strip():
-                return f'\\sqrt[{deg_text}]{{{expr}}}'
+                #return f'\\sqrt[{deg_text}]{{{expr}}}'
+                #return LatexCommands.format('sqrt', expr)
+                return '\\sqrt[' + deg_text + ']{' + expr + '}'
         
-        return f'\\sqrt{{{expr}}}'
+
+        
+        #return f'\\sqrt{{{expr}}}'
+        return LatexCommands.format('sqrt', expr)        
+
     
     def parse_d(self, elem):
         """Delimiters - handle all types properly"""
@@ -496,7 +561,9 @@ class DirectOmmlToLatex:
                 # Piecewise
                 content = self.parse(grandchild)
                 if open_d == '{' and (not close_d or close_d == ''):
-                    return f'\\begin{{cases}} {content} \\end{{cases}}'
+                    #return f'\\begin{{cases}} {content} \\end{{cases}}'
+                    return '\\begin{cases} ' + content + ' \\end{cases}'
+
                 return content
         
         # Parse the content
@@ -504,13 +571,21 @@ class DirectOmmlToLatex:
         
         # Apply delimiters based on type
         if open_d == '(' and close_d == ')':
-            return f'\\left({inner}\\right)'
+            #return f'\\left({inner}\\right)'
+            return '\\left(' + inner + '\\right)'
+
         elif open_d == '[' and close_d == ']':
-            return f'\\left[{inner}\\right]'
+            #return f'\\left[{inner}\\right]'
+            return '\\left[' + inner + '\\right]'
+
         elif open_d == '{' and close_d == '}':
-            return f'\\left\\{{{inner}\\right\\}}'
+            #return f'\\left\\{{{inner}\\right\\}}'
+            return '\\left\\{' + inner + '\\right\\}'
+
         elif open_d == '|' and close_d == '|':
-            return f'\\left|{inner}\\right|'
+            #return f'\\left|{inner}\\right|'
+            return '\\left|' + inner + '\\right|'
+
         else:
             return f'{open_d}{inner}{close_d}'
     
@@ -536,7 +611,9 @@ class DirectOmmlToLatex:
         # Join rows with line breaks
         if rows:
             content = ' \\\\ '.join(rows)
-            return f'\\begin{{{matrix_type}}} {content} \\end{{{matrix_type}}}'
+            #return f'\\begin{{{matrix_type}}} {content} \\end{{{matrix_type}}}'
+            return '\\begin{' + matrix_type + '} ' + content + ' \\end{' + matrix_type + '}'
+
         
         return ''
     
@@ -615,9 +692,13 @@ class DirectOmmlToLatex:
                 '̇': 'dot', '̈': 'ddot', '⃗': 'vec',
             }
             latex_acc = accent_map.get(acc_val, 'hat')
-            return f'\\{latex_acc}{{{base}}}'
+            #return f'\\{latex_acc}{{{base}}}'
+            return '\\' + latex_acc + '{' + base + '}'
+
         
-        return f'\\hat{{{base}}}'
+        #return f'\\hat{{{base}}}'
+        return LatexCommands.format('hat', base)        
+
     
     def parse_eqArr(self, elem):
         """Equation array for piecewise functions"""
