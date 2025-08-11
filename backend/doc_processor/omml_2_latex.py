@@ -247,8 +247,34 @@ class DirectOmmlToLatex:
             text = re.sub(r'\b' + re.escape(func) + r'(?=\s|\(|$)', 
                          lambda m: latex_func, text)
         return text
-    
+
+
     def clean_output(self, latex):
+        """Clean LaTeX output carefully"""
+        # Skip cleaning for certain patterns INCLUDING mathbb, sqrt, frac
+        if any(cmd in latex for cmd in ['\\binom', '\\left', '\\right', '\\begin', '\\mathbb', '\\sqrt', '\\frac']):
+            # Only do minimal cleaning for complex structures
+            latex = re.sub(r'\s+_', '_', latex)
+            latex = re.sub(r'\s+\^', '^', latex)
+            # Fix partial derivatives
+            latex = re.sub(r'(\\partial)([a-zA-Z])', r'\1 \2', latex)
+            # Fix missing braces in fractions
+            latex = re.sub(r'\\frac([a-zA-Z0-9])\{', r'\\frac{\1}{', latex)
+            return latex
+            
+        # Regular cleaning for simple content
+        # GOOD - you commented out the problematic line!
+        #latex = re.sub(r'(?<!\\[a-zA-Z])\{([a-zA-Z0-9])\}', r'\1', latex)
+        latex = re.sub(r'\{\{([^}]+)\}\}', r'{\1}', latex)
+        latex = re.sub(r'\s+_', '_', latex)
+        latex = re.sub(r'\s+\^', '^', latex)
+        # Fix partial derivatives
+        latex = re.sub(r'(\\partial)([a-zA-Z])', r'\1 \2', latex)
+        # Fix missing braces in fractions
+        latex = re.sub(r'\\frac([a-zA-Z0-9])\{', r'\\frac{\1}{', latex)
+        return latex
+
+    def clean_output_old(self, latex):
         """Clean LaTeX output carefully"""
         # Skip cleaning for certain patterns
         if any(cmd in latex for cmd in ['\\binom', '\\left', '\\right', '\\begin']):
@@ -263,7 +289,7 @@ class DirectOmmlToLatex:
             
         # Regular cleaning for simple content
         # Don't remove braces from single characters after backslash commands
-        latex = re.sub(r'(?<!\\[a-zA-Z])\{([a-zA-Z0-9])\}', r'\1', latex)
+        #latex = re.sub(r'(?<!\\[a-zA-Z])\{([a-zA-Z0-9])\}', r'\1', latex)
         latex = re.sub(r'\{\{([^}]+)\}\}', r'{\1}', latex)
         latex = re.sub(r'\s+_', '_', latex)
         latex = re.sub(r'\s+\^', '^', latex)
@@ -484,11 +510,17 @@ class DirectOmmlToLatex:
         
         result = operator
         if sub_elem is not None:
-            result += f'_{{{self.parse(sub_elem)}}}'
+            #result += f'_{{{self.parse(sub_elem)}}}'
+            result += '_{' + self.parse(sub_elem) + '}'
+
         if sup_elem is not None:
-            result += f'^{{{self.parse(sup_elem)}}}'
+            #result += f'^{{{self.parse(sup_elem)}}}'
+            result += '^{' + self.parse(sup_elem) + '}'
+
         if expr_elem is not None:
-            result += f' {self.parse(expr_elem)}'
+            #result += f' {self.parse(expr_elem)}'
+            result += ' ' + self.parse(expr_elem)
+
         
         return result
     
@@ -676,7 +708,9 @@ class DirectOmmlToLatex:
         elif not base.startswith('\\'):
             base = self.convert_function_names(base)
         
-        return f'{base}_{{{lim}}}'
+        #return f'{base}_{{{lim}}}'
+        return base + '_{' + lim + '}'
+
     
     def parse_acc(self, elem):
         """Accents"""
