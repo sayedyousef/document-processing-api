@@ -9,7 +9,92 @@ import re
 from lxml import etree
 
 # Symbol mapping
+
 MATH_SYMBOLS = {
+    # Comparison/Relations - ALL need space
+    '≠': r'\neq ',
+    '≤': r'\leq ',
+    '≥': r'\geq ',
+    '≈': r'\approx ',
+    '≡': r'\equiv ',
+    '∼': r'\sim ',
+    
+    # Set operations - ALL need space
+    '∈': r'\in ',
+    '∉': r'\notin ',
+    '⊂': r'\subset ',
+    '⊆': r'\subseteq ',
+    '∪': r'\cup ',
+    '∩': r'\cap ',
+    '∅': r'\emptyset ',
+    
+    # Logic - ALL need space
+    '∧': r'\land ',
+    '∨': r'\lor ',
+    '¬': r'\neg ',
+    '∀': r'\forall ',
+    '∃': r'\exists ',
+    
+    # Arrows - ALL need space
+    '→': r'\rightarrow ',
+    '←': r'\leftarrow ',
+    '↔': r'\leftrightarrow ',
+    '⇒': r'\Rightarrow ',
+    '⟹': r'\implies ',
+    '⟸': r'\impliedby ',
+    
+    # Greek letters - ALL need space
+    'α': r'\alpha ',
+    'β': r'\beta ',
+    'γ': r'\gamma ',
+    'δ': r'\delta ',
+    'ε': r'\epsilon ',
+    'θ': r'\theta ',
+    'λ': r'\lambda ',
+    'μ': r'\mu ',
+    'π': r'\pi ',
+    'σ': r'\sigma ',
+    'τ': r'\tau ',
+    'φ': r'\phi ',
+    'ψ': r'\psi ',
+    'ω': r'\omega ',
+    'υ': r'\upsilon ',
+    'Γ': r'\Gamma ',
+    'Δ': r'\Delta ',
+    'Σ': r'\Sigma ',
+    'Ω': r'\Omega ',
+    'ϒ': r'\Upsilon ',
+    
+    # Other symbols ending with letters - need space
+    '∂': r'\partial ',
+    '∇': r'\nabla ',
+    '∞': r'\infty ',
+    '∠': r'\angle ',
+    '⊥': r'\perp ',
+    '∥': r'\parallel ',
+    '…': r'\ldots ',
+    '∴': r'\therefore ',
+    '∵': r'\because ',
+    
+    # Binary operators - ALSO need space
+    '±': r'\pm ',
+    '∓': r'\mp ',
+    '×': r'\times ',
+    '÷': r'\div ',
+    '·': r'\cdot ',
+    
+    # Big operators - need space
+    '∑': r'\sum ',
+    '∏': r'\prod ',
+    '∫': r'\int ',
+    
+    # Special cases - NO trailing space
+    '√': r'\sqrt',  # Always followed by {
+    '°': r'^\circ',  # Superscript notation
+    'ⅆ': r'\, d',  # Already has special spacing
+}
+
+MATH_SYMBOLS_old = {
     '≠': r'\neq', '≤': r'\leq', '≥': r'\geq', '±': r'\pm', '×': r'\times',
     '÷': r'\div', '·': r'\cdot', '≈': r'\approx', '≡': r'\equiv', '∼': r'\sim',
     '∈': r'\in', '∉': r'\notin', '⊂': r'\subset', '⊆': r'\subseteq',
@@ -45,8 +130,27 @@ class DirectOmmlToLatex:
             'm': 'http://schemas.openxmlformats.org/officeDocument/2006/math',
             'w': 'http://schemas.openxmlformats.org/wordprocessingml/2006/main'
         }
-            
+
+
     def smart_symbol_convert(self, text):
+        """Convert symbols - spacing already handled in mapping"""
+        result = []
+        i = 0
+        while i < len(text):
+            found = False
+            for symbol, latex in MATH_SYMBOLS.items():
+                if text[i:i+len(symbol)] == symbol:
+                    result.append(latex)
+                    i += len(symbol)
+                    found = True
+                    break
+            if not found:
+                result.append(text[i])
+                i += 1
+        return ''.join(result)
+
+
+    def smart_symbol_convert_old(self, text):
         """Convert symbols with smart spacing"""
         result = []
         i = 0
