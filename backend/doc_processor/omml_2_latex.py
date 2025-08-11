@@ -26,6 +26,9 @@ MATH_SYMBOLS = {
     'υ': r'\upsilon', 'ϒ': r'\Upsilon',
     'ⅆ': r'\, d',  # Differential d with thin space before it
     '∓': r'\mp',  # Missing minus-plus
+    '⟹': r'\implies',
+    '⟸': r'\impliedby',  
+
 }
 
 FUNCTION_NAMES = {
@@ -56,7 +59,9 @@ class DirectOmmlToLatex:
                     if i + len(symbol) < len(text):
                         next_char = text[i + len(symbol)]
                         # If it's a LaTeX command and next is letter, add space
-                        if latex.startswith('\\') and next_char.isalpha():
+                        #if latex.startswith('\\') and next_char.isalpha():
+                        if latex.startswith('\\') and latex[-1].isalpha() and next_char.isalpha():
+    
                             result.append(' ')
                     i += len(symbol)
                     found = True
@@ -128,6 +133,11 @@ class DirectOmmlToLatex:
         # Handle minus sign first
         text = text.replace('−', '-')
         
+
+        # ADD THIS: Fix spacing for LaTeX commands that are ALREADY in the text
+        # This handles cases where \neq, \in etc are already present without spaces
+        text = re.sub(r'(\\[a-zA-Z]+)([a-zA-Z0-9])', lambda m: m.group(1) + (' ' if m.group(1)[-1].isalpha() else '') + m.group(2), text)
+
         # FIX: Handle differential d (ⅆ) with proper LaTeX spacing
         # Pattern 'rⅆrⅆ' should become 'r \, dr \, d'
         text = re.sub(r'([a-z])ⅆ([a-z])ⅆ', r'\1 \, d\2 \, d', text)
@@ -146,7 +156,17 @@ class DirectOmmlToLatex:
         
         # FIX: Add space after Greek letters when followed by variables
         # This fixes γz → \gamma z in superscripts
+        #text = re.sub(r'(\\gamma|\\alpha|\\beta|\\delta|\\theta|\\sigma)([a-z])', r'\1 \2', text)
+        text = re.sub(r'(\\neq|\\in|\\rightarrow|\\leftarrow|\\implies|\\leq|\\geq)([a-zA-Z])', r'\1 \2', text)
+
+        # ADD THIS: Final spacing fix for any LaTeX commands we might have missed
+        # This is more comprehensive than your current pattern
+        text = re.sub(r'(\\(?:neq|eq|leq|geq|in|notin|subset|subseteq|rightarrow|leftarrow|implies|Rightarrow|forall|exists|pm|mp|times|div|cdot|approx|equiv|sim|alpha|beta|gamma|delta|epsilon|theta|lambda|mu|pi|sigma|tau|phi|psi|omega|Gamma|Delta|Sigma|Omega))([a-zA-Z])', r'\1 \2', text)
+        
+        # Your existing Greek letter spacing (keep this)
         text = re.sub(r'(\\gamma|\\alpha|\\beta|\\delta|\\theta|\\sigma)([a-z])', r'\1 \2', text)
+        
+
 
         # Convert function names
         text = self.convert_function_names(text)
