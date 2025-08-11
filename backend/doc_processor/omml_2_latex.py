@@ -254,6 +254,34 @@ class DirectOmmlToLatex:
 
     def parse_r(self, elem):
         """Run element with smart symbol handling"""
+
+        # Check for double-struck (blackboard bold) formatting
+        scr_elem = elem.find('.//m:scr', self.ns)
+        if scr_elem is not None and scr_elem.get(f'{{{self.ns["m"]}}}val') == 'double-struck':
+            # Get the text
+            texts = elem.xpath('.//m:t/text()', namespaces=self.ns)
+            text = ''.join(texts)
+            
+            # Convert to \mathbb{} format
+            # Handle common blackboard bold letters
+            bb_map = {
+                'R': r'\mathbb{R} ',
+                'C': r'\mathbb{C} ',
+                'N': r'\mathbb{N} ',
+                'Z': r'\mathbb{Z} ',
+                'Q': r'\mathbb{Q} ',
+                'H': r'\mathbb{H} ',
+                'F': r'\mathbb{F} ',
+                'P': r'\mathbb{P} ',
+            }
+            
+            if text in bb_map:
+                return bb_map[text]
+            else:
+                # Generic blackboard bold for any letter
+                return f'\\mathbb{{{text}}} '
+
+
         texts = elem.xpath('.//m:t/text()', namespaces=self.ns)
         text = ''.join(texts)
         
