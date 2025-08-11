@@ -140,11 +140,11 @@ MATH_SYMBOLS_old = {
 }
 
 FUNCTION_NAMES = {
-    'sin': r'\sin', 'cos': r'\cos', 'tan': r'\tan', 'sec': r'\sec',
-    'csc': r'\csc', 'cot': r'\cot', 'arcsin': r'\arcsin', 'arccos': r'\arccos',
-    'sinh': r'\sinh', 'cosh': r'\cosh', 'tanh': r'\tanh', 'log': r'\log',
-    'ln': r'\ln', 'exp': r'\exp', 'lim': r'\lim', 'sup': r'\sup', 'inf': r'\inf',
-    'min': r'\min', 'max': r'\max', 'det': r'\det', 'dim': r'\dim',
+    'sin': r'\sin ', 'cos': r'\cos ', 'tan': r'\tan ', 'sec': r'\sec ',
+    'csc': r'\csc ', 'cot': r'\cot ', 'arcsin': r'\arcsin ', 'arccos': r'\arccos ',
+    'sinh': r'\sinh ', 'cosh': r'\cosh ', 'tanh': r'\tanh ', 'log': r'\log ',
+    'ln': r'\ln ', 'exp': r'\exp ', 'lim': r'\lim ', 'sup': r'\sup ', 'inf': r'\inf ',
+    'min': r'\min ', 'max': r'\max ', 'det': r'\det ', 'dim': r'\dim ',
 }
 
 class DirectOmmlToLatex:
@@ -279,7 +279,9 @@ class DirectOmmlToLatex:
                 return bb_map[text]
             else:
                 # Generic blackboard bold for any letter
-                return f'\\mathbb{{{text}}} '
+                #return f'\\mathbb{{{text}}} '
+                return '\\mathbb{' + text + '} '
+
 
 
         texts = elem.xpath('.//m:t/text()', namespaces=self.ns)
