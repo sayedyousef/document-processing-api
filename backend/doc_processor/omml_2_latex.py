@@ -92,6 +92,29 @@ MATH_SYMBOLS = {
     '√': r'\sqrt',  # Always followed by {
     '°': r'^\circ',  # Superscript notation
     'ⅆ': r'\, d',  # Already has special spacing
+
+
+    # Blackboard bold letters (mathematical sets)
+    'ℝ': r'\mathbb{R} ',  # Real numbers
+    'ℂ': r'\mathbb{C} ',  # Complex numbers
+    'ℕ': r'\mathbb{N} ',  # Natural numbers
+    'ℤ': r'\mathbb{Z} ',  # Integers
+    'ℚ': r'\mathbb{Q} ',  # Rational numbers
+    'ℍ': r'\mathbb{H} ',  # Quaternions
+    '𝔽': r'\mathbb{F} ',  # Field
+    '𝕂': r'\mathbb{K} ',  # Field (alternative)
+    '𝔸': r'\mathbb{A} ',  # Algebraic numbers
+    '𝔹': r'\mathbb{B} ',  # Boolean domain
+    '𝕊': r'\mathbb{S} ',  # Sphere
+    '𝕋': r'\mathbb{T} ',  # Torus
+    '𝕌': r'\mathbb{U} ',  # 
+    '𝕍': r'\mathbb{V} ',  # 
+    '𝕎': r'\mathbb{W} ',  # 
+    '𝕏': r'\mathbb{X} ',  # 
+    '𝕐': r'\mathbb{Y} ',  # 
+    'ℙ': r'\mathbb{P} ',  # Projective space/Primes
+    
+
 }
 
 MATH_SYMBOLS_old = {
@@ -261,11 +284,13 @@ class DirectOmmlToLatex:
         # FIX: Add space after Greek letters when followed by variables
         # This fixes γz → \gamma z in superscripts
         #text = re.sub(r'(\\gamma|\\alpha|\\beta|\\delta|\\theta|\\sigma)([a-z])', r'\1 \2', text)
-        text = re.sub(r'(\\neq|\\in|\\rightarrow|\\leftarrow|\\implies|\\leq|\\geq)([a-zA-Z])', r'\1 \2', text)
+        #text = re.sub(r'(\\neq|\\in|\\rightarrow|\\leftarrow|\\implies|\\leq|\\geq)([a-zA-Z])', r'\1 \2', text)
+        text = re.sub(r'(\\neq|\\in|\\rightarrow|\\leftarrow|\\implies|\\leq|\\geq)(?![a-z])([a-zA-Z])', r'\1 \2', text)
 
         # ADD THIS: Final spacing fix for any LaTeX commands we might have missed
         # This is more comprehensive than your current pattern
-        text = re.sub(r'(\\(?:neq|eq|leq|geq|in|notin|subset|subseteq|rightarrow|leftarrow|implies|Rightarrow|forall|exists|pm|mp|times|div|cdot|approx|equiv|sim|alpha|beta|gamma|delta|epsilon|theta|lambda|mu|pi|sigma|tau|phi|psi|omega|Gamma|Delta|Sigma|Omega))([a-zA-Z])', r'\1 \2', text)
+        #text = re.sub(r'(\\(?:neq|eq|leq|geq|in|notin|subset|subseteq|rightarrow|leftarrow|implies|Rightarrow|forall|exists|pm|mp|times|div|cdot|approx|equiv|sim|alpha|beta|gamma|delta|epsilon|theta|lambda|mu|pi|sigma|tau|phi|psi|omega|Gamma|Delta|Sigma|Omega))([a-zA-Z])', r'\1 \2', text)
+        text = re.sub(r'(\\(?:neq|eq|leq|geq|in|notin|subset|subseteq|rightarrow|leftarrow|implies|Rightarrow|forall|exists|pm|mp|times|div|cdot|approx|equiv|sim|alpha|beta|gamma|delta|epsilon|theta|lambda|mu|pi|sigma|tau|phi|psi|omega|Gamma|Delta|Sigma|Omega))(?![a-z])([a-zA-Z])', r'\1 \2', text)
         
         # Your existing Greek letter spacing (keep this)
         text = re.sub(r'(\\gamma|\\alpha|\\beta|\\delta|\\theta|\\sigma)([a-z])', r'\1 \2', text)
