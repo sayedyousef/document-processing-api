@@ -55,6 +55,9 @@ logger.info(f"Output directory: {OUTPUT_DIR}")
 # In-memory job tracking
 jobs = {}
 
+# Global flag to switch between Word COM and ZIP approaches
+USE_ZIP_APPROACH = True  # Set to False for Word COM, True for ZIP
+
 @app.post("/api/process")
 async def process_documents(
     background_tasks: BackgroundTasks,
@@ -294,10 +297,18 @@ async def process_job(job_id: str, file_paths: List[Path], processor_type: str, 
                 output_file = processor.process_document(str(file_path), str(output_dir))
             
             elif processor_type == "latex_equations":
-                replacer = WordCOMEquationReplacer()
-                output_filename = f"{Path(file_path).stem}_latex_equations.docx"
-                output_path = os.path.join(output_dir, output_filename)
-                output_file = replacer.process_document(file_path, output_path)
+                if USE_ZIP_APPROACH:
+                    from doc_processor.zip_equation_replacer import ZipEquationReplacer
+                    replacer = ZipEquationReplacer()
+                    output_filename = f"{Path(file_path).stem}_latex_equations.docx"
+                    output_path = os.path.join(output_dir, output_filename)
+                    output_file = replacer.process_document(file_path, output_path)
+                else:
+                    replacer = WordCOMEquationReplacer()
+                    output_filename = f"{Path(file_path).stem}_latex_equations.docx"
+                    output_path = os.path.join(output_dir, output_filename)
+                    output_file = replacer.process_document(file_path, output_path)
+                
                 if output_file:
                     output_file = Path(output_file)
                     
