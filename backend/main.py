@@ -1,6 +1,5 @@
 """
-FIXED main.py - This version definitely works!
-Save as: backend/main.py
+FIXED main.py - Works with your existing WordCOMEquationReplacer
 """
 
 from fastapi import FastAPI, File, UploadFile, BackgroundTasks, Form, HTTPException
@@ -13,21 +12,27 @@ import zipfile
 import logging
 import sys
 import os
+#from doc_processor.main_word_com_equation_replacer import WordCOMEquationReplacer
 
-#from doc_processor.latex_processor  import process_word_document, save_results
-from doc_processor.main_word_com_equation_replacer import WordCOMEquationReplacer
-
+# Global flag to switch between Word COM and ZIP approaches
+USE_ZIP_APPROACH = False  # Set to False for Word COM, True for ZIP
 
 # Setup simple logging to console
 logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s',
+    level=logging.DEBUG,
+    format='%(asctime)s - %(name)s - %(levelname)s - [%(filename)s:%(lineno)d] - %(message)s',
     handlers=[
-        logging.StreamHandler(sys.stdout),
-        logging.FileHandler('processing.log',encoding='utf-8')
+        logging.FileHandler('app_debug.log', encoding='utf-8'),  # Add encoding
+        logging.StreamHandler()
     ]
 )
+
 logger = logging.getLogger(__name__)
+
+# Log which approach is being used
+logger.info(f"========================================")
+logger.info(f"EQUATION PROCESSING MODE: {'ZIP' if USE_ZIP_APPROACH else 'Word COM'}")
+logger.info(f"========================================")
 
 app = FastAPI(title="Document Processing API")
 
@@ -55,9 +60,6 @@ logger.info(f"Output directory: {OUTPUT_DIR}")
 # In-memory job tracking
 jobs = {}
 
-# Global flag to switch between Word COM and ZIP approaches
-USE_ZIP_APPROACH = True  # Set to False for Word COM, True for ZIP
-
 @app.post("/api/process")
 async def process_documents(
     background_tasks: BackgroundTasks,
@@ -69,6 +71,7 @@ async def process_documents(
     
     logger.info(f"=== NEW JOB {job_id} ===")
     logger.info(f"Processing {len(files)} files with {processor_type}")
+    logger.info(f"Using {'ZIP' if USE_ZIP_APPROACH else 'Word COM'} approach for equations")
     
     # Initialize job
     jobs[job_id] = {
@@ -76,7 +79,8 @@ async def process_documents(
         "total": len(files),
         "completed": 0,
         "results": [],
-        "processor": processor_type
+        "processor": processor_type,
+        "equation_approach": "ZIP" if USE_ZIP_APPROACH else "Word COM"
     }
     
     # Create job directories
@@ -109,7 +113,8 @@ async def process_documents(
     return {
         "job_id": job_id,
         "status": "processing",
-        "message": f"Processing {len(files)} documents"
+        "message": f"Processing {len(files)} documents",
+        "equation_approach": "ZIP" if USE_ZIP_APPROACH else "Word COM"
     }
 
 @app.get("/api/status/{job_id}")
@@ -125,12 +130,9 @@ async def get_status(job_id: str):
         "status": job["status"],
         "progress": f"{job['completed']}/{job['total']}",
         "processor": job["processor"],
+        "equation_approach": job.get("equation_approach", "unknown"),
         "results": job.get("results", [])
     }
-
-"""
-Add this to your main.py - Replace the download endpoints with these
-"""
 
 @app.get("/api/download/{job_id}")
 async def download_all_results(job_id: str):
@@ -221,14 +223,13 @@ async def download_single_result(job_id: str, index: int):
     
     logger.info(f"Serving file: {file_path}")
 
-    media_type = result.get("type", "application/octet-stream")  # ADD THIS LINE
+    media_type = result.get("type", "application/octet-stream")
     
     return FileResponse(
         path=str(file_path),
         filename=result.get("output_filename", result["filename"]),
         media_type=media_type  
     )
-
 
 def should_zip_output(output_dir):
     """
@@ -245,7 +246,7 @@ def should_zip_output(output_dir):
     dirs = [d for d in all_items if d.is_dir()]
     is_zipp_output = len(dirs) > 0 or len(files) > 2
     # Zip if subdirectories exist or more than 2 files
-    print (f"is_zipp_output = {is_zipp_output}")
+    print(f"is_zipp_output = {is_zipp_output}")
     return is_zipp_output
 
 def create_zip_output(output_dir, job_id):
@@ -278,11 +279,15 @@ def create_zip_output(output_dir, job_id):
     print(f"✅ Zip created: {zip_path}")
     return zip_path
 
-
 async def process_job(job_id: str, file_paths: List[Path], processor_type: str, output_dir: Path):
     """Background job processor with fixed ZIP handling"""
     logger.info(f"Starting background processing for job {job_id}")
     logger.info(f"Output directory: {output_dir}")
+    logger.info(f"Equation processing mode: {'ZIP' if USE_ZIP_APPROACH else 'Word COM'}")
+    if USE_ZIP_APPROACH:
+        from doc_processor.zip_equation_replacer import ZipEquationReplacer
+    else:
+        from doc_processor.main_word_com_equation_replacer import WordCOMEquationReplacer
     
     # Temporary list for results
     temp_results = []
@@ -297,8 +302,9 @@ async def process_job(job_id: str, file_paths: List[Path], processor_type: str, 
                 output_file = processor.process_document(str(file_path), str(output_dir))
             
             elif processor_type == "latex_equations":
+                logger.info(f"  Using {'ZIP' if USE_ZIP_APPROACH else 'Word COM'} for equation processing")
+                
                 if USE_ZIP_APPROACH:
-                    from doc_processor.zip_equation_replacer import ZipEquationReplacer
                     replacer = ZipEquationReplacer()
                     output_filename = f"{Path(file_path).stem}_latex_equations.docx"
                     output_path = os.path.join(output_dir, output_filename)
@@ -307,27 +313,36 @@ async def process_job(job_id: str, file_paths: List[Path], processor_type: str, 
                     replacer = WordCOMEquationReplacer()
                     output_filename = f"{Path(file_path).stem}_latex_equations.docx"
                     output_path = os.path.join(output_dir, output_filename)
-                    output_file = replacer.process_document(file_path, output_path)
+                    result = replacer.process_document(file_path, output_path)
+                    
+                    # For latex_equations, we want WORD ONLY
+                    if isinstance(result, dict):
+                        output_file = result.get('word_path')  # Get WORD path only
+                    else:
+                        output_file = result
                 
                 if output_file:
                     output_file = Path(output_file)
-                    
+
             elif processor_type == "word_complete":
-                from full_word_processor.WordFullProcessor import WordFullProcessor
+                logger.info("Processing Word complete conversion")
                 
-                # Step 1: Process equations
+                from doc_processor.main_word_com_equation_replacer import WordCOMEquationReplacer
                 replacer = WordCOMEquationReplacer()
-                equations_filename = f"{Path(file_path).stem}_equations.docx"
-                equations_path = os.path.join(output_dir, equations_filename)
-                equations_doc = replacer.process_document(file_path, equations_path)
+                output_filename = f"{Path(file_path).stem}_complete.docx"
+                output_path = os.path.join(output_dir, output_filename)
+                result = replacer.process_document(file_path, output_path)
                 
-                # Step 2: Convert to HTML
-                if equations_doc:
-                    processor = WordFullProcessor()
-                    output_file = processor.process_document(equations_doc, output_dir)
+                # For word_complete, we want HTML
+                if isinstance(result, dict):
+                    output_file = result.get('html_path')  # Get HTML path
+                    if not output_file:
+                        output_file = result.get('word_path')  # Fallback to word if no HTML
                 else:
-                    processor = WordFullProcessor()
-                    output_file = processor.process_document(file_path, output_dir)
+                    output_file = result
+                
+                if output_file:
+                    output_file = Path(output_file)
             
             else:  # scan_verify
                 output_file = await scan_and_verify(file_path, output_dir)
@@ -355,7 +370,7 @@ async def process_job(job_id: str, file_paths: List[Path], processor_type: str, 
             })
             jobs[job_id]["completed"] += 1
     
-    # THIS MUST BE AT THE SAME INDENTATION AS THE FOR LOOP
+    # Check if we should zip the output
     logger.info(f"DEBUG: Processing complete, checking if should zip...")
     logger.info(f"DEBUG: temp_results count: {len(temp_results)}")
     logger.info(f"DEBUG: processor_type: {processor_type}")
@@ -406,167 +421,6 @@ async def process_job(job_id: str, file_paths: List[Path], processor_type: str, 
     logger.info(f"=== JOB {job_id} COMPLETED ===")
     logger.info(f"=== FINAL RESULTS: {len(jobs[job_id]['results'])} items ===")
 
-async def process_job_old(job_id: str, file_paths: List[Path], processor_type: str, output_dir: Path):
-    """Background job processor"""
-    logger.info(f"Starting background processing for job {job_id}")
-    logger.info(f"Output directory: {output_dir}")
-    
-    # ONLY ADD THIS LINE - temporary results during processing
-    temp_results = []
-    
-    for i, file_path in enumerate(file_paths):
-        try:
-            logger.info(f"Processing file {i+1}/{len(file_paths)}: {file_path.name}")
-            
-            '''
-            if processor_type == "word_to_html":
-                # Simple HTML conversion
-                output_file = await convert_to_html(file_path, output_dir)
-            else:  # scan_verify
-                output_file = await scan_and_verify(file_path, output_dir)
-            if processor_type == "word_to_html":
-                # Simple HTML conversion
-                output_file = await convert_to_html(file_path, output_dir)
-            '''
-            
-            if processor_type == "word_to_html":
-                # Simple HTML conversion
-                output_file = await convert_to_html(file_path, output_dir)
-            
-            elif processor_type == "latex_equations":
-                # Just call your replacer directly - no await, no asyncio!
-                replacer = WordCOMEquationReplacer()
-                output_filename = f"{Path(file_path).stem}_latex_equations.docx"
-                output_path = os.path.join(output_dir, output_filename)
-                
-                # Direct synchronous call - exactly like your existing code does!
-                output_file = replacer.process_document(file_path, output_path)
-                
-                # Convert to Path for consistency with other processors
-                if output_file:
-                    output_file = Path(output_file)
-            elif processor_type == "word_complete":
-                #from full-word-processor.word_com_equation_replacer import WordCOMEquationReplacer
-                from full_word_processor.WordFullProcessor import WordFullProcessor
-                
-                
-                # Step 1: Process equations
-                replacer = WordCOMEquationReplacer()
-                equations_filename = f"{Path(file_path).stem}_equations.docx"
-                equations_path = os.path.join(output_dir, equations_filename)
-                
-                equations_doc = replacer.process_document(file_path, equations_path)
-                
-                # Step 2: Convert to HTML
-                if equations_doc:
-                    processor = WordFullProcessor()
-                    output_file = processor.process_document(equations_doc, output_dir)
-                else:
-                    # If equation processing failed, use original
-                    processor = WordFullProcessor()
-                    output_file = processor.process_document(file_path, output_dir)
-            
-            else:  # scan_verify
-                output_file = await scan_and_verify(file_path, output_dir)
-            
-            result = {
-                "filename": file_path.name,
-                "output_filename": output_file.name,
-                "path": str(output_file),
-                "index": i,
-                "success": True
-            }
-            
-            temp_results.append(result)  # CHANGE: temp_results instead of jobs[job_id]["results"]
-            jobs[job_id]["completed"] += 1
-            
-            logger.info(f"Successfully processed: {file_path.name}")
-            logger.info(f"  Output: {output_file}")
-            
-        except Exception as e:
-            logger.error(f"Failed to process {file_path.name}: {str(e)}")
-            temp_results.append({  # CHANGE: temp_results instead of jobs[job_id]["results"]
-                "filename": file_path.name,
-                "error": str(e),
-                "index": i
-            })
-            jobs[job_id]["completed"] += 1
-    
-    logger.info(f"DEBUG: temp_results has {len(temp_results)} items")
-    logger.info(f"DEBUG: processor_type = {processor_type}")
-
-    # After all processing, check if we should zip
-    if processor_type in ["word_complete", "word_to_html"]:
-        logger.info(f"DEBUG: Checking if should zip...")
-
-        if should_zip_output(output_dir):
-            logger.info(f"DEBUG: Should zip = True")
-
-            # Create zip file
-            zip_file = create_zip_output(output_dir, job_id)
-            logger.info(f"DEBUG: Zip created at {zip_file}")
-
-            # Clear results and add only zip
-            '''
-            results = [{
-                "filename": zip_file.name,
-                "size": zip_file.stat().st_size,
-                "type": "application/zip"
-            }]
-            print(f"\n📦 Output zipped due to multiple files/folders")
-            '''
-
-            # Create new results with ONLY the ZIP
-            zip_result = {
-                "filename": zip_file.name,
-                "output_filename": zip_file.name,
-                "path": str(zip_file),
-                "index": 0,
-                "success": True,
-                "size": zip_file.stat().st_size,
-                "type": "application/zip"
-            }
-            
-            # REPLACE all results with just the ZIP
-            logger.info(f"DEBUG: Before replace - jobs[{job_id}]['results'] = {jobs[job_id].get('results', [])}")
-            jobs[job_id]["results"] = [zip_result]  # Direct assignment
-            logger.info(f"DEBUG: After replace - jobs[{job_id}]['results'] = {jobs[job_id]['results']}")
-            logger.info(f"📦 Results replaced with ZIP: {jobs[job_id]['results'][0]['filename']}")
-            
-            logger.info(f"📦 Results replaced with ZIP: {jobs[job_id]['results']}")
-
-        else:
-            # Add individual files to results
-            logger.info(f"DEBUG: Should zip = False")
-            jobs[job_id]["results"] = temp_results  # ADD: Set results from temp
-            for file in output_dir.iterdir():
-                if file.is_file():
-                    jobs[job_id]["results"].append({  # FIX: Changed 'results' to 'jobs[job_id]["results"]'
-                        "filename": file.name,
-                        "size": file.stat().st_size,
-                        "type": "text/html" if file.suffix == ".html" else "application/octet-stream"
-                    })
-    else:
-        # For other processors, list files normally
-        logger.info(f"DEBUG: Other processor type: {processor_type}")
-
-        jobs[job_id]["results"] = temp_results  # ADD: Set results from temp
-        for file in output_dir.iterdir():
-            if file.is_file():
-                jobs[job_id]["results"].append({  # FIX: Changed 'results' to 'jobs[job_id]["results"]'
-                    "filename": file.name,
-                    "size": file.stat().st_size,
-                    "type": "application/octet-stream"
-                })
-        
-
-    logger.info(f"DEBUG: Final results count: {len(jobs[job_id]['results'])}")
-    logger.info(f"DEBUG: Final results: {jobs[job_id]['results']}")
-
-    jobs[job_id]["status"] = "completed"
-    logger.info(f"=== JOB {job_id} COMPLETED ===")
-
-
 async def convert_to_html(input_file: Path, output_dir: Path) -> Path:
     """Simple HTML conversion using mammoth"""
     import mammoth
@@ -579,7 +433,7 @@ async def convert_to_html(input_file: Path, output_dir: Path) -> Path:
     
     # Create HTML with Arabic support
     html_content = f"""<!DOCTYPE html>
-<html lang="ar" xx="1" dir="rtl">
+<html lang="ar" dir="rtl">
 <head>
     <meta charset="UTF-8">
     <title>{input_file.stem}</title>
@@ -595,16 +449,15 @@ async def convert_to_html(input_file: Path, output_dir: Path) -> Path:
         h1, h2, h3 {{ color: #333; }}
         img {{ max-width: 100%; height: auto; }}
     </style>
-        <script>
-      window.MathJax = {
-        tex: {
-          inlineMath: [['\\(', '\\)']],
-          displayMath: [['\\[', '\\]']]
-        }
-      };
+    <script>
+      window.MathJax = {{
+        tex: {{
+          inlineMath: [['\\\\(', '\\\\)']],
+          displayMath: [['\\\\[', '\\\\]']]
+        }}
+      }};
     </script>
     <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml.js"></script>
-
 </head>
 <body>
 {result.value}
@@ -649,6 +502,7 @@ async def root():
     return {
         "status": "running",
         "message": "Document Processing API",
+        "equation_approach": "ZIP" if USE_ZIP_APPROACH else "Word COM",
         "temp_dir": str(TEMP_DIR),
         "output_dir": str(OUTPUT_DIR)
     }
@@ -671,7 +525,8 @@ async def debug_job(job_id: str):
         "job": job,
         "output_dir": str(job_output_dir),
         "output_files": output_files,
-        "output_dir_exists": job_output_dir.exists()
+        "output_dir_exists": job_output_dir.exists(),
+        "equation_approach": "ZIP" if USE_ZIP_APPROACH else "Word COM"
     }
 
 if __name__ == "__main__":
@@ -679,4 +534,5 @@ if __name__ == "__main__":
     logger.info("Starting Document Processing API...")
     logger.info(f"Working directory: {Path.cwd()}")
     logger.info(f"Script location: {Path(__file__).parent}")
+    logger.info(f"Equation processing: {'ZIP' if USE_ZIP_APPROACH else 'Word COM'} approach")
     uvicorn.run(app, host="0.0.0.0", port=8000)

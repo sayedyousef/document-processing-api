@@ -101,7 +101,7 @@ class ZipEquationReplacer:
                             cleaned_root, 
                             encoding='UTF-8', 
                             xml_declaration=True,
-                            pretty_print=False
+                            pretty_print=True
                         )
                         zip_out.writestr(item, modified_content)
                         
@@ -270,7 +270,7 @@ class ZipEquationReplacer:
                     for item in zip_in.infolist():
                         if item.filename == 'word/document.xml':
                             # Replace document.xml with our modified version
-                            modified_content = etree.tostring(root, encoding='unicode')
+                            modified_content = etree.tostring(root, encoding='unicode', pretty_print=True)
                             zip_out.writestr(item, modified_content.encode('utf-8'))
                         else:
                             # Copy all other files as-is
@@ -285,13 +285,10 @@ class ZipEquationReplacer:
 
 
     def _replace_equations_in_xml(self, root, equations):
-        """FIXED: Properly create elements with namespaces"""
+        """Replace equations in XML with markers for HTML processing"""
         
         ns = {'m': 'http://schemas.openxmlformats.org/officeDocument/2006/math',
             'w': 'http://schemas.openxmlformats.org/wordprocessingml/2006/main'}
-        
-        # IMPORTANT: Define full namespace strings for element creation
-        W_NS = '{http://schemas.openxmlformats.org/wordprocessingml/2006/main}'
         
         all_equations = root.xpath('//m:oMath', namespaces=ns)
         
@@ -299,101 +296,52 @@ class ZipEquationReplacer:
         
         equations_replaced = 0
         
-        # Process in REVERSE order
-        for i in range(len(all_equations) - 1, -1, -1):
+        for i, eq_node in enumerate(all_equations):
             if i >= len(equations):
-                continue
-                
-            eq_node = all_equations[i]
+                break
             
             try:
                 latex = equations[i]['latex'].strip() or f"[EQUATION_{i + 1}_EMPTY]"
                 
-                # Create marked text
+                # Determine if inline or display
                 is_inline = len(latex) < 30
+                
+                # Create marked text with MATHSTARTINLINE/MATHSTARTDISPLAY
                 if is_inline:
                     marked_text = f' MATHSTARTINLINE\\({latex}\\)MATHENDINLINE '
                 else:
                     marked_text = f' MATHSTARTDISPLAY\\[{latex}\\]MATHENDDISPLAY '
                 
+                # Get parent
                 parent = eq_node.getparent()
                 
                 if parent is not None:
                     parent_tag = parent.tag.split('}')[-1] if '}' in parent.tag else parent.tag
                     
-                    # Get index before removal
-                    eq_index = list(parent).index(eq_node)
-                    
+                    # Create text element with markers
                     if parent_tag == 'r':
-                        # In a run - create text element properly
-                        # DON'T use fromstring, use Element
-                        t = etree.Element(W_NS + 't')
-                        t.set(W_NS + 'space', 'preserve')
+                        # In a run - replace with text
+                        t = etree.Element(f'{{{ns["w"]}}}t')
+                        t.set(f'{{{ns["w"]}}}space', 'preserve')
                         t.text = marked_text
-                        
-                        # Insert and remove
-                        parent.insert(eq_index, t)
-                        parent.remove(eq_node)
-                        
+                        parent.replace(eq_node, t)
                     else:
-                        # In paragraph - create run with text
-                        # DON'T use fromstring, use Element
-                        r = etree.Element(W_NS + 'r')
-                        t = etree.SubElement(r, W_NS + 't')
-                        t.set(W_NS + 'space', 'preserve')
+                        # In paragraph or elsewhere - create run with text
+                        r = etree.Element(f'{{{ns["w"]}}}r')
+                        t = etree.SubElement(r, f'{{{ns["w"]}}}t')
+                        t.set(f'{{{ns["w"]}}}space', 'preserve')
                         t.text = marked_text
-                        
-                        # Insert and remove
-                        parent.insert(eq_index, r)
-                        parent.remove(eq_node)
+                        parent.replace(eq_node, r)
                     
                     equations_replaced += 1
                     print(f"  Replaced equation {i+1}: {latex[:30]}...")
                     
             except Exception as e:
                 print(f"Error replacing equation {i+1}: {e}")
-                import traceback
-                traceback.print_exc()
         
-        print(f"✓ Replaced {equations_replaced} equations")
+        print(f"✓ Replaced {equations_replaced} equations with markers")
         return root
 
-    # ALTERNATIVE: If above doesn't work, try this even simpler version
-    def _replace_equations_in_xml_simplest(self, root, equations):
-        """Simplest possible approach - just clear oMath content and add text"""
-        
-        ns = {'m': 'http://schemas.openxmlformats.org/officeDocument/2006/math',
-            'w': 'http://schemas.openxmlformats.org/wordprocessingml/2006/main'}
-        
-        all_equations = root.xpath('//m:oMath', namespaces=ns)
-        print(f"Found {len(all_equations)} equations to replace")
-        
-        for i, eq_node in enumerate(all_equations):
-            if i >= len(equations):
-                break
-                
-            try:
-                latex = equations[i]['latex'].strip() or f"[EQUATION_{i + 1}]"
-                
-                # Clear all children of the oMath element
-                for child in list(eq_node):
-                    eq_node.remove(child)
-                
-                # Add a simple run with text
-                run = etree.SubElement(eq_node, f'{{{ns["m"]}}}r')
-                text = etree.SubElement(run, f'{{{ns["m"]}}}t')
-                
-                # Simple text without special markers for testing
-                text.text = f" [{latex}] "
-                
-                print(f"  Modified equation {i+1}")
-                
-            except Exception as e:
-                print(f"Error with equation {i+1}: {e}")
-        
-        return root
-        
-            
     def _replace_equations_in_xml_old(self, root, equations):
         """Replace equations in XML - handles all equation types"""
         
@@ -623,7 +571,7 @@ class ZipEquationReplacer:
                             modified_xml, 
                             encoding='UTF-8', 
                             xml_declaration=True,
-                            pretty_print=False
+                            pretty_print=True
                         )
                         zip_out.writestr(item, modified_content)
                     else:

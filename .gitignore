@@ -75,6 +75,11 @@ Thumbs.db
 *.gif
 equations_fixed_*.txt
 
+# Test output
+backend/test_output/
+backend/test_results*.json
+backend/test_*.py
+
 # Test files and extracted documents
 *_latex_equations/
 *_clean_temp.docx
